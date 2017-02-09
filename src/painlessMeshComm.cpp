@@ -20,7 +20,19 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendMessage(meshConnectionType *conn, uint3
     debugMsg(COMMUNICATION, "sendMessage(conn): conn-nodeId=%d destId=%d type=%d msg=%s\n",
              conn->nodeId, destId, (uint8_t)type, msg.c_str());
 
-    String package = buildMeshPackage(destId, fromId, type, msg);
+    // Set randomSeed
+    randomSeed(ESP.getCycleCount());
+
+    // See if the package needs slicing
+    Serial.print("Message to be sent: ");
+    Serial.println(msg);
+    Serial.print("Message length: ");
+    Serial.println(msg.length());
+
+    uint32_t slices = 1;
+    uint32_t sliceNum = 1;
+    uint32_t sliceID = random(0, 4294967295);
+    String package = buildMeshPackage(destId, fromId, type, slices, sliceNum, sliceID, msg);
 
     return sendPackage(conn, package, priority);
 }
@@ -118,7 +130,7 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendPackage(meshConnectionType *connection,
 }
 
 //***********************************************************************
-String ICACHE_FLASH_ATTR painlessMesh::buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, String &msg) {
+String ICACHE_FLASH_ATTR painlessMesh::buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, uint32_t slices, uint32_t sliceNum, uint32_t sliceID, String &msg) {
     debugMsg(GENERAL, "In buildMeshPackage(): msg=%s\n", msg.c_str());
 
     DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
