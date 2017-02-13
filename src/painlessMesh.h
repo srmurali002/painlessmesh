@@ -21,12 +21,16 @@ extern "C" {
 
 #include "painlessMeshSync.h"
 
-#define NODE_TIMEOUT        3000000  //uSecs
-#define JSON_BUFSIZE        300 // initial size for the DynamicJsonBuffers.
-#define MIN_FREE_MEMORY     16000 // Minimum free memory, besides here all packets in queue are discarded.
-#define MAX_MESSAGE_QUEUE   50 // MAX number of unsent messages in queue. Newer messages are discarded
-#define MAX_CONSECUTIVE_SEND 5 // Max message busrt
+#define NODE_TIMEOUT            3000000  //uSecs
 
+//#define JSON_BUFSIZE            300 // initial size for the DynamicJsonBuffers.
+//@vkynchev -> with newer versions of ArduinoJson this is not needed anymore. It will occupy more memory than needed in some cases...
+
+#define MIN_FREE_MEMORY         16000 // Minimum free memory, besides here all packets in queue are discarded.
+#define MAX_MESSAGE_QUEUE       50 // MAX number of unsent messages in queue. Newer messages are discarded
+#define MAX_CONSECUTIVE_SEND    5 // Max message busrt
+#define MAX_MESSAGE_SIZE        1000 // Max message size in bytes(if the message is larger it will be sliced down)
+#define MAX_MESSAGE_BUNDLE_SIZE 5 // Max message slices (current limit based on testing), messages with more slices are discarded
 
 enum nodeStatusType {
     INITIALIZING = 0,
@@ -146,7 +150,7 @@ protected:
     bool                broadcastMessage(uint32_t fromId, meshPackageType type, String &msg, meshConnectionType *exclude = NULL);
 
     bool                sendPackage(meshConnectionType *connection, String &package, bool priority = false);
-    String              buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, String &msg);
+    String              buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, uint32_t slices, uint32_t sliceNum, uint32_t sliceID, String &msg);
 
 
     // in painlessMeshSync.cpp
@@ -208,6 +212,8 @@ protected:
     _auth_mode  _meshAuthMode;
     uint8_t     _meshHidden;
     uint8_t     _meshMaxConn;
+
+    String                          _recievedMessages = "{}";
 
     scanStatusType                  _scanStatus = IDLE; // STA scanning status
     nodeStatusType                  _nodeStatus = INITIALIZING;

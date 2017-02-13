@@ -244,7 +244,7 @@ String ICACHE_FLASH_ATTR painlessMesh::subConnectionJson(meshConnectionType *exc
     if (exclude != NULL)
         debugMsg(GENERAL, "subConnectionJson(), exclude=%d\n", exclude->nodeId);
 
-    DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+    DynamicJsonBuffer jsonBuffer;
     JsonArray& subArray = jsonBuffer.createArray();
     if (!subArray.success())
         debugMsg(ERROR, "subConnectionJson(): ran out of memory 1");
@@ -331,7 +331,7 @@ uint16_t ICACHE_FLASH_ATTR painlessMesh::jsonSubConnCount(String& subConns) {
     if (subConns.length() < 3)
         return 0;
 
-    DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+    DynamicJsonBuffer jsonBuffer;
     JsonArray& subArray = jsonBuffer.parseArray(subConns);
 
     if (!subArray.success()) {
@@ -391,6 +391,9 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
 
     uint32_t receivedAt = staticThis->getNodeTime();
 
+    //Serial.print("Recieved: ");
+    //Serial.println(data);
+
     staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): data=%s fromId=%d\n", data, receiveConn ? receiveConn->nodeId : 0);
 
     if (!receiveConn) {
@@ -399,66 +402,126 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
         return;
     }
 
+    //String somestring(data);      //copy data before json parsing FIXME: can someone explain why this works?
+    //@vkynchev -> Now works using ArduinoJson v5.8.2 (maybe it was a bug on older versions)
 
-    String somestring(data);      //copy data before json parsing FIXME: can someone explain why this works?
+    // Decode _recievedMessages
+    DynamicJsonBuffer jsonBufferMessages;
+    JsonObject& rootMessages = jsonBufferMessages.parseObject(staticThis->_recievedMessages);
+    // Empty the String to free up memory and to print to it at the end
+    staticThis->_recievedMessages = "";
 
-    DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+    /*
+    Serial.print("_recievedMessages -> ");
+    rootMessages.printTo(Serial);
+    Serial.println();
+    */
+
+    // Decode the packet
+    DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(data);
     if (!root.success()) {   // Test if parsing succeeded.
         staticThis->debugMsg(ERROR, "meshRecvCb(): parseObject() failed. data=%s<--\n", data);
         return;
     }
 
-    staticThis->debugMsg(GENERAL, "meshRecvCb(): Recvd from %d-->%s<--\n", receiveConn->nodeId, data);
+    const char* packageID = root["packageID"].as<char*>();
 
-    String msg = root["msg"];
+    staticThis->debugMsg(GENERAL, "meshRecvCb(): Recvd packageID=%s from %d-->%s<--\n", packageID, receiveConn->nodeId, data);
+
+    // If this is the first or the last part of the message
+    if(root["sliceNum"].as<int>() == 0) rootMessages[packageID] = "";
+
     meshPackageType t_message = (meshPackageType)(int)root["type"];
 
     switch (t_message) {
-    case NODE_SYNC_REQUEST:
-    case NODE_SYNC_REPLY:
-        staticThis->handleNodeSync(receiveConn, root);
-        break;
+      case NODE_SYNC_REQUEST:
+      case NODE_SYNC_REPLY: {
+            String tempMessage(root["subs"].as<char*>());
+            String oldMessage(rootMessages[packageID].as<char*>());
 
-    case TIME_SYNC:
-        staticThis->handleTimeSync(receiveConn, root, receivedAt);
-        break;
+            oldMessage += tempMessage;
+            rootMessages[packageID] = oldMessage;
+          }
+          break;
+      default: {
+            String tempMessage(root["msg"].as<char*>());
+            String oldMessage(rootMessages[packageID].as<char*>());
 
-    case SINGLE:
-    case TIME_DELAY:
-        if ((uint32_t)root["dest"] == staticThis->getNodeId()) {  // msg for us!
-            if (t_message == TIME_DELAY) {
-                staticThis->handleTimeDelay(receiveConn, root, receivedAt);
-            } else {
-                if (staticThis->receivedCallback)
-                    staticThis->receivedCallback((uint32_t)root["from"], msg);
+            oldMessage += tempMessage;
+            rootMessages[packageID] = oldMessage;
+          }
+          break;
+    }
+
+    bool flushMessages = false;
+    if(root["slices"].as<int>() == root["sliceNum"].as<int>()) {
+      //Serial.printf("Recieved whole message... \n");
+
+      switch (t_message) {
+        case NODE_SYNC_REQUEST:
+        case NODE_SYNC_REPLY:
+            root["subs"] = rootMessages[packageID];
+            break;
+        default:
+            root["msg"] = rootMessages[packageID];
+            break;
+      }
+
+      String msg(rootMessages[packageID].as<char*>());
+
+      switch (t_message) {
+        case NODE_SYNC_REQUEST:
+        case NODE_SYNC_REPLY:
+            staticThis->handleNodeSync(receiveConn, root);
+            break;
+
+        case TIME_SYNC:
+            staticThis->handleTimeSync(receiveConn, root, receivedAt);
+            break;
+
+        case SINGLE:
+        case TIME_DELAY:
+            if ((uint32_t)root["dest"] == staticThis->getNodeId()) {  // msg for us!
+                if (t_message == TIME_DELAY) {
+                    staticThis->handleTimeDelay(receiveConn, root, receivedAt);
+                } else {
+                    if (staticThis->receivedCallback)
+                        staticThis->receivedCallback((uint32_t)root["from"], msg);
+                }
+            } else {                                                    // pass it along
+                //staticThis->sendMessage( (uint32_t)root["dest"], (uint32_t)root["from"], SINGLE, msg );  //this is ineffiecnt
+                String tempStr;
+                root.printTo(tempStr);
+                meshConnectionType *conn = staticThis->findConnection((uint32_t)root["dest"]);
+                if (conn) {
+                    staticThis->sendPackage(conn, tempStr);
+                    staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): Message %s to %u forwarded through %u\n", tempStr.c_str(), (uint32_t)root["dest"], conn->nodeId);
+                }
             }
-        } else {                                                    // pass it along
-            //staticThis->sendMessage( (uint32_t)root["dest"], (uint32_t)root["from"], SINGLE, msg );  //this is ineffiecnt
-            String tempStr;
-            root.printTo(tempStr);
-            meshConnectionType *conn = staticThis->findConnection((uint32_t)root["dest"]);
-            if (conn) {
-                staticThis->sendPackage(conn, tempStr);
-                staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): Message %s to %u forwarded through %u\n", tempStr.c_str(), (uint32_t)root["dest"], conn->nodeId);
-            }
-        }
-        break;
+            break;
 
-    case BROADCAST:
-        staticThis->broadcastMessage((uint32_t)root["from"], BROADCAST, msg, receiveConn);
-        if (staticThis->receivedCallback)
-            staticThis->receivedCallback((uint32_t)root["from"], msg);
-        break;
+        case BROADCAST:
+            staticThis->broadcastMessage((uint32_t)root["from"], BROADCAST, msg, receiveConn);
+            if (staticThis->receivedCallback)
+                staticThis->receivedCallback((uint32_t)root["from"], msg);
+            break;
 
-    default:
-        staticThis->debugMsg(ERROR, "meshRecvCb(): unexpected json, root[\"type\"]=%d", (int)root["type"]);
-        return;
+        default:
+            staticThis->debugMsg(ERROR, "meshRecvCb(): unexpected json, root[\"type\"]=%d", (int)root["type"]);
+            return;
+      }
+
+      // Remove read message from json
+      rootMessages.remove(packageID);
     }
 
     // record that we've gotten a valid package
     receiveConn->lastReceived = system_get_time();
     staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): lastRecieved=%u fromId=%d type=%d\n", receiveConn->lastReceived, receiveConn->nodeId, t_message);
+
+    // Encode _recievedMessages back to String
+    rootMessages.printTo(staticThis->_recievedMessages);
     return;
 }
 
@@ -472,12 +535,12 @@ void ICACHE_FLASH_ATTR painlessMesh::meshSentCb(void *arg) {
         staticThis->debugMsg(ERROR, "meshSentCb(): err did not find meshConnection? Likely it was dropped for some reason\n");
         return;
     }
-    
+
     if (!meshConnection->sendQueue.empty()) {
         for (int i = 0; i < MAX_CONSECUTIVE_SEND; ++i) {
             String package = *meshConnection->sendQueue.begin();
 
-            sint8 errCode = espconn_send(meshConnection->esp_conn, 
+            sint8 errCode = espconn_send(meshConnection->esp_conn,
                     (uint8*)package.c_str(), package.length());
             if (errCode != 0) {
                 staticThis->debugMsg(ERROR, "meshSentCb(): espconn_send Failed err=%d Queue size %d\n", errCode, meshConnection->sendQueue.size());

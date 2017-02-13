@@ -20,21 +20,68 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendMessage(meshConnectionType *conn, uint3
     debugMsg(COMMUNICATION, "sendMessage(conn): conn-nodeId=%d destId=%d type=%d msg=%s\n",
              conn->nodeId, destId, (uint8_t)type, msg.c_str());
 
-    // Set randomSeed
-    randomSeed(ESP.getCycleCount());
+    switch (type) {
+      case NODE_SYNC_REQUEST:
+      case NODE_SYNC_REPLY:
+      {
+        DynamicJsonBuffer jsonBuffer;
+        JsonArray& subs = jsonBuffer.parseArray(msg);
+        if (!subs.success()) {
+          debugMsg(GENERAL, "sendMessage(conn): subs = jsonBuffer.parseArray( msg ) failed!");
+        }
+        msg = "";
+        subs.printTo(msg);
+        break;
+      }
+      default:
+        msg = msg;
+        break;
+    }
 
-    // See if the package needs slicing
-    Serial.print("Message to be sent: ");
-    Serial.println(msg);
-    Serial.print("Message length: ");
-    Serial.println(msg.length());
+    // Calculate slices
+    uint32_t slices = 0;
+    float temp_division = msg.length() / MAX_MESSAGE_SIZE; // 1537 / 1000 = 1.537
+    slices = (int)temp_division;
+    if(slices > 0 && msg.length() % MAX_MESSAGE_SIZE == 0) {
+      slices--;
+    }
 
-    uint32_t slices = 1;
-    uint32_t sliceNum = 1;
-    uint32_t sliceID = random(0, 4294967295);
-    String package = buildMeshPackage(destId, fromId, type, slices, sliceNum, sliceID, msg);
+    // Abort if there are more slices than #defined
+    if(slices >= MAX_MESSAGE_BUNDLE_SIZE) {
+      debugMsg(ERROR, "sendMessage(conn): MAX_MESSAGE_BUNDLE_SIZE reached, Message Length: %d, Slices: %d, FreeMem: %d\n", msg.length(), slices, ESP.getFreeHeap());
+      return false;
+    }
 
-    return sendPackage(conn, package, priority);
+    debugMsg(COMMUNICATION, "sendMessage(conn): slices=%d\n", slices);
+
+    // Generate random packageID
+    uint32_t packageID = random(0, 2147483647);
+
+    bool failed = false;
+    uint32_t startAddr = 0;
+    uint32_t endAddr = MAX_MESSAGE_SIZE;
+    for(int i = 0; i <= slices; i++){
+      String sliced = "";
+      if(i == slices) {
+        sliced = msg.substring(startAddr, msg.length());
+      } else {
+        sliced = msg.substring(startAddr, endAddr);
+        startAddr += MAX_MESSAGE_SIZE;
+        endAddr += MAX_MESSAGE_SIZE;
+      }
+
+      debugMsg(COMMUNICATION, "sendMessage(conn): slice=%s\n", sliced.c_str());
+      debugMsg(COMMUNICATION, "sendMessage(conn): slice.length()=%d\n", sliced.length());
+
+      // Send the package
+      String package = buildMeshPackage(destId, fromId, type, slices, i, packageID, sliced);
+
+      while(conn->sendQueue.size() > 0) { yield(); }
+      if(!sendPackage(conn, package, priority)) failed = true;
+    }
+
+    if(failed) return false;
+    return true;
 }
 
 //***********************************************************************
@@ -130,36 +177,39 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendPackage(meshConnectionType *connection,
 }
 
 //***********************************************************************
-String ICACHE_FLASH_ATTR painlessMesh::buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, uint32_t slices, uint32_t sliceNum, uint32_t sliceID, String &msg) {
+String ICACHE_FLASH_ATTR painlessMesh::buildMeshPackage(uint32_t destId, uint32_t fromId, meshPackageType type, uint32_t slices, uint32_t sliceNum, uint32_t packageID, String &msg) {
     debugMsg(GENERAL, "In buildMeshPackage(): msg=%s\n", msg.c_str());
 
-    DynamicJsonBuffer jsonBuffer(JSON_BUFSIZE);
+    DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
     root["dest"] = destId;
     //root["from"] = _nodeId;
     root["from"] = fromId;
     root["type"] = (uint8_t)type;
+    root["slices"] = (uint8_t)slices;
+    root["sliceNum"] = (uint8_t)sliceNum;
+    root["packageID"] = packageID;
     root["timestamp"] = staticThis->getNodeTime();
 
     switch (type) {
-    case NODE_SYNC_REQUEST:
-    case NODE_SYNC_REPLY:
-    {
-        JsonArray& subs = jsonBuffer.parseArray(msg);
-        if (!subs.success()) {
-            debugMsg(GENERAL, "buildMeshPackage(): subs = jsonBuffer.parseArray( msg ) failed!");
-        }
-        root["subs"] = subs;
+      case NODE_SYNC_REQUEST:
+      case NODE_SYNC_REPLY:
+      {
+        root["subs"] = msg;
         break;
-    }
-    case TIME_SYNC:
-        root["msg"] = jsonBuffer.parseObject(msg);
-        break;
-    default:
+      }
+      case TIME_SYNC:
         root["msg"] = msg;
+        break;
+      default:
+        root["msg"] = msg;
+        break;
     }
 
     String ret;
     root.printTo(ret);
+
+    debugMsg(COMMUNICATION, "sendMessage(conn): package=%s\n", ret.c_str());
+
     return ret;
 }

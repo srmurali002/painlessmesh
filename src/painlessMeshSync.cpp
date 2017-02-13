@@ -95,7 +95,7 @@ int32_t ICACHE_FLASH_ATTR timeSync::calcAdjustment() {
     staticThis->debugMsg(S_TIME, "calcAdjustment(): Start calculation. t0 = %u, t1 = %u, t2 = %u, t3 = %u\n", times[0], times[1], times[2], times[3]);
 
     if (times[0] == 0 || times[1] == 0 || times[2] == 0 || times[3] == 0) {
-        // if any value is 0 
+        // if any value is 0
         staticThis->debugMsg(ERROR, "calcAdjustment(): TimeStamp error.\n");
         return 0xFFFFFFFF; // return max value
     }
@@ -118,7 +118,7 @@ int32_t ICACHE_FLASH_ATTR timeSync::delayCalc() {
     staticThis->debugMsg(S_TIME, "delayCalc(): Start calculation. t0 = %u, t1 = %u, t2 = %u, t3 = %u\n", timeDelay[0], timeDelay[1], timeDelay[2], timeDelay[3]);
 
     if (timeDelay[0] == 0 || timeDelay[1] == 0 || timeDelay[2] == 0 || timeDelay[3] == 0) {
-        // if any value is 0 
+        // if any value is 0
         staticThis->debugMsg(ERROR, "delayCalc(): TimeStamp error.\n");
         return -1; // return max value
     }
@@ -184,25 +184,26 @@ void ICACHE_FLASH_ATTR painlessMesh::handleNodeSync(meshConnectionType *conn, Js
     debugMsg(SYNC, "handleNodeSync(): json = %s\n", tempstr.c_str());
 
     switch (message_type) {
-    case NODE_SYNC_REQUEST:
-    {
-        debugMsg(SYNC, "handleNodeSync(): valid NODE_SYNC_REQUEST %d sending NODE_SYNC_REPLY\n", conn->nodeId);
-        String myOtherSubConnections = subConnectionJson(conn);
-        sendMessage(conn, conn->nodeId, _nodeId, NODE_SYNC_REPLY, myOtherSubConnections, true);
-        break;
-    }
-    case NODE_SYNC_REPLY:
-        debugMsg(SYNC, "handleNodeSync(): valid NODE_SYNC_REPLY from %d\n", conn->nodeId);
-        conn->nodeSyncLastRequested = 0;  //reset nodeSyncLastRequested Timer
-        if (conn->lastTimeSync == 0) {
-            debugMsg(S_TIME, "handleNodeSync(): timeSyncStatus changed to NEEDED (1)\n");
-            //startTimeSync(conn); // TimeSync is started on manageConnections() because status is set to NEEDED
-            //conn->timeSyncStatus = IN_PROGRESS;
-            conn->timeSyncStatus = NEEDED;
-        }
-        break;
-    default:
-        debugMsg(ERROR, "handleNodeSync(): weird type? %d\n", message_type);
+      case NODE_SYNC_REQUEST:
+      {
+          debugMsg(SYNC, "handleNodeSync(): valid NODE_SYNC_REQUEST %d sending NODE_SYNC_REPLY\n", conn->nodeId);
+          String myOtherSubConnections = subConnectionJson(conn);
+          sendMessage(conn, conn->nodeId, _nodeId, NODE_SYNC_REPLY, myOtherSubConnections, true);
+          break;
+      }
+      case NODE_SYNC_REPLY:
+          debugMsg(SYNC, "handleNodeSync(): valid NODE_SYNC_REPLY from %d\n", conn->nodeId);
+          conn->nodeSyncLastRequested = 0;  //reset nodeSyncLastRequested Timer
+          if (conn->lastTimeSync == 0) {
+              debugMsg(S_TIME, "handleNodeSync(): timeSyncStatus changed to NEEDED (1)\n");
+              //startTimeSync(conn); // TimeSync is started on manageConnections() because status is set to NEEDED
+              //conn->timeSyncStatus = IN_PROGRESS;
+              conn->timeSyncStatus = NEEDED;
+          }
+          break;
+      default:
+          debugMsg(ERROR, "handleNodeSync(): weird type? %d\n", message_type);
+          break;
     }
 
     if (reSyncAllSubConnections == true) {
@@ -273,70 +274,70 @@ void ICACHE_FLASH_ATTR painlessMesh::handleTimeSync(meshConnectionType *conn, Js
     String t_stamp;
 
     switch (timeSyncMessageType) {
-    case (TIME_SYNC_REQUEST):  // Other party request me to ask it for time
-        debugMsg(S_TIME, "handleTimeSync(): Received requesto to start TimeSync. Status = %d\n", conn->timeSyncStatus);
-        if (conn->timeSyncStatus != IN_PROGRESS) {
-            startTimeSync(conn, false); // Start time sync only if I was not syncing yet
-        } else {
-            debugMsg(S_TIME, "handleTimeSync(): Already syncing. Request ignored\n");
-        }
-        break;
+      case (TIME_SYNC_REQUEST):  // Other party request me to ask it for time
+          debugMsg(S_TIME, "handleTimeSync(): Received requesto to start TimeSync. Status = %d\n", conn->timeSyncStatus);
+          if (conn->timeSyncStatus != IN_PROGRESS) {
+              startTimeSync(conn, false); // Start time sync only if I was not syncing yet
+          } else {
+              debugMsg(S_TIME, "handleTimeSync(): Already syncing. Request ignored\n");
+          }
+          break;
 
-    case (TIME_REQUEST):
+      case (TIME_REQUEST):
 
-        conn->timeSyncStatus == IN_PROGRESS;
-        debugMsg(S_TIME, "handleTimeSync(): TIME REQUEST received. T0 = %d\n", conn->time.times[0]);
+          conn->timeSyncStatus == IN_PROGRESS;
+          debugMsg(S_TIME, "handleTimeSync(): TIME REQUEST received. T0 = %d\n", conn->time.times[0]);
 
-        // Build time response
-        t_stamp = conn->time.buildTimeStamp(TIME_RESPONSE, conn->time.times[0], receivedAt, getNodeTime());
-        staticThis->sendMessage(conn, conn->nodeId, _nodeId, TIME_SYNC, t_stamp, true);
+          // Build time response
+          t_stamp = conn->time.buildTimeStamp(TIME_RESPONSE, conn->time.times[0], receivedAt, getNodeTime());
+          staticThis->sendMessage(conn, conn->nodeId, _nodeId, TIME_SYNC, t_stamp, true);
 
-        debugMsg(S_TIME, "handleTimeSync(): Response sent %s\n", t_stamp.c_str());
-        debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to COMPLETE\n", conn->nodeId);
+          debugMsg(S_TIME, "handleTimeSync(): Response sent %s\n", t_stamp.c_str());
+          debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to COMPLETE\n", conn->nodeId);
 
-        // After response is sent I assume sync is completed
-        conn->timeSyncStatus == COMPLETE;
-        conn->lastTimeSync = getNodeTime();
-        break;
+          // After response is sent I assume sync is completed
+          conn->timeSyncStatus == COMPLETE;
+          conn->lastTimeSync = getNodeTime();
+          break;
 
-    case (TIME_RESPONSE):
-        debugMsg(S_TIME, "handleTimeSync(): TIME RESPONSE received.\n");
-        if (conn->timeSyncStatus == IN_PROGRESS) {
-            conn->time.times[3] = receivedAt; // Calculate fourth timestamp (response received time)
+      case (TIME_RESPONSE):
+          debugMsg(S_TIME, "handleTimeSync(): TIME RESPONSE received.\n");
+          if (conn->timeSyncStatus == IN_PROGRESS) {
+              conn->time.times[3] = receivedAt; // Calculate fourth timestamp (response received time)
 
-            int32_t offset = conn->time.calcAdjustment(); // Adjust time and get calculated offset
+              int32_t offset = conn->time.calcAdjustment(); // Adjust time and get calculated offset
 
-            // flag all connections for re-timeSync
-            if (nodeTimeAdjustedCallback) {
-                nodeTimeAdjustedCallback(offset);
-            }
+              // flag all connections for re-timeSync
+              if (nodeTimeAdjustedCallback) {
+                  nodeTimeAdjustedCallback(offset);
+              }
 
-            SimpleList<meshConnectionType>::iterator connection = _connections.begin();
-            while (connection != _connections.end()) {
-                if (connection != conn) {  // exclude this connection
-                    connection->timeSyncStatus = NEEDED;
-                    debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to NEEDED (2)\n", connection->nodeId);
-                }
-                connection++;
-            }
+              SimpleList<meshConnectionType>::iterator connection = _connections.begin();
+              while (connection != _connections.end()) {
+                  if (connection != conn) {  // exclude this connection
+                      connection->timeSyncStatus = NEEDED;
+                      debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to NEEDED (2)\n", connection->nodeId);
+                  }
+                  connection++;
+              }
 
-            if (offset < MIN_ACCURACY && offset > -MIN_ACCURACY) {
-                // mark complete only if offset was less than 10 ms
-                conn->timeSyncStatus = COMPLETE;
-                debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to COMPLETE\n", connection->nodeId);
-            } else {
-                // Iterate sync procedure if accuracy was not enough
-                conn->timeSyncStatus = NEEDED;
-                debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to NEEDED (3)\n", connection->nodeId);
+              if (offset < MIN_ACCURACY && offset > -MIN_ACCURACY) {
+                  // mark complete only if offset was less than 10 ms
+                  conn->timeSyncStatus = COMPLETE;
+                  debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to COMPLETE\n", connection->nodeId);
+              } else {
+                  // Iterate sync procedure if accuracy was not enough
+                  conn->timeSyncStatus = NEEDED;
+                  debugMsg(S_TIME, "handleTimeSync(): timeSyncStatus with %d changed to NEEDED (3)\n", connection->nodeId);
 
-            }
-            conn->lastTimeSync = getNodeTime();
-        } else {
-            debugMsg(S_TIME, "handleTimeSync(): TIME RESPONSE ignored.\n");
-            conn->timeSyncStatus == COMPLETE;
-        }
+              }
+              conn->lastTimeSync = getNodeTime();
+          } else {
+              debugMsg(S_TIME, "handleTimeSync(): TIME RESPONSE ignored.\n");
+              conn->timeSyncStatus == COMPLETE;
+          }
 
-        break;
+          break;
     }
 
     debugMsg(S_TIME, "handleTimeSync(): ----------------------------------\n");
@@ -354,42 +355,38 @@ void ICACHE_FLASH_ATTR painlessMesh::handleTimeDelay(meshConnectionType *conn, J
 
     switch (timeSyncMessageType) {
 
-    case (TIME_REQUEST):
+      case (TIME_REQUEST):
 
-        //conn->timeSyncStatus == IN_PROGRESS;
-        debugMsg(S_TIME, "handleTimeDelay(): TIME REQUEST received. T0 = %d\n", conn->time.times[0]);
+          //conn->timeSyncStatus == IN_PROGRESS;
+          debugMsg(S_TIME, "handleTimeDelay(): TIME REQUEST received. T0 = %d\n", conn->time.times[0]);
 
-        // Build time response
-        t_stamp = conn->time.buildTimeStamp(TIME_RESPONSE, conn->time.timeDelay[0], receivedAt, getNodeTime());
-        staticThis->sendMessage(conn, from, _nodeId, TIME_DELAY, t_stamp);
+          // Build time response
+          t_stamp = conn->time.buildTimeStamp(TIME_RESPONSE, conn->time.timeDelay[0], receivedAt, getNodeTime());
+          staticThis->sendMessage(conn, from, _nodeId, TIME_DELAY, t_stamp);
 
-        debugMsg(S_TIME, "handleTimeDelay(): Response sent %s\n", t_stamp.c_str());
+          debugMsg(S_TIME, "handleTimeDelay(): Response sent %s\n", t_stamp.c_str());
 
-        // After response is sent I assume sync is completed
-        //conn->timeSyncStatus == COMPLETE;
-        //conn->lastTimeSync = getNodeTime();
-        break;
+          // After response is sent I assume sync is completed
+          //conn->timeSyncStatus == COMPLETE;
+          //conn->lastTimeSync = getNodeTime();
+          break;
 
-    case (TIME_RESPONSE):
-        debugMsg(S_TIME, "handleTimeDelay(): TIME RESPONSE received.\n");
-        conn->time.timeDelay[3] = receivedAt; // Calculate fourth timestamp (response received time)
+      case (TIME_RESPONSE):
+          debugMsg(S_TIME, "handleTimeDelay(): TIME RESPONSE received.\n");
+          conn->time.timeDelay[3] = receivedAt; // Calculate fourth timestamp (response received time)
 
-        int32_t delay = conn->time.delayCalc(); // Adjust time and get calculated offset
-        debugMsg(S_TIME, "handleTimeDelay(): Delay is %d\n", delay);
+          int32_t delay = conn->time.delayCalc(); // Adjust time and get calculated offset
+          debugMsg(S_TIME, "handleTimeDelay(): Delay is %d\n", delay);
 
-        //conn->timeSyncStatus == COMPLETE;
+          //conn->timeSyncStatus == COMPLETE;
 
-        if (nodeDelayReceivedCallback)
-            nodeDelayReceivedCallback(from, delay);
+          if (nodeDelayReceivedCallback)
+              nodeDelayReceivedCallback(from, delay);
 
 
-        break;
+          break;
     }
 
     debugMsg(S_TIME, "handleTimeSync(): ----------------------------------\n");
 
 }
-
-
-
-
