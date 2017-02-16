@@ -76,7 +76,7 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendMessage(meshConnectionType *conn, uint3
       // Send the package
       String package = buildMeshPackage(destId, fromId, type, slices, i, packageID, sliced);
 
-      while(conn->sendQueue.size() > 0) { yield(); }
+      while(conn->sendQueue.size() > 0) { delay(1); } // Here I am using delay because yield() causes issues...
       if(!sendPackage(conn, package, priority)) failed = true;
     }
 
@@ -162,7 +162,6 @@ bool ICACHE_FLASH_ATTR painlessMesh::sendPackage(meshConnectionType *connection,
                         debugMsg(ERROR, "sendPackage(): Message queue full -> %d , FreeMem: %d\n", connection->sendQueue.size(), ESP.getFreeHeap());
                         return false;
                     }
-
                 }
                 return true;
             } else {

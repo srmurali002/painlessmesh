@@ -296,7 +296,8 @@ SimpleList<uint32_t> ICACHE_FLASH_ATTR painlessMesh::getNodeList() {
             break;
         comma = nodeJson.indexOf(',', index);
         String temp = nodeJson.substring(index + 9, comma);
-        nodeList.push_back(temp.toInt());
+        uint32_t id = strtoul(temp.c_str(), NULL, 10);
+        nodeList.push_back(id);
         index = comma + 1;
         nodeJson = nodeJson.substring(index);
 
@@ -405,18 +406,6 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
     //String somestring(data);      //copy data before json parsing FIXME: can someone explain why this works?
     //@vkynchev -> Now works using ArduinoJson v5.8.2 (maybe it was a bug on older versions)
 
-    // Decode _recievedMessages
-    DynamicJsonBuffer jsonBufferMessages;
-    JsonObject& rootMessages = jsonBufferMessages.parseObject(staticThis->_recievedMessages);
-    // Empty the String to free up memory and to print to it at the end
-    staticThis->_recievedMessages = "";
-
-    /*
-    Serial.print("_recievedMessages -> ");
-    rootMessages.printTo(Serial);
-    Serial.println();
-    */
-
     // Decode the packet
     DynamicJsonBuffer jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(data);
@@ -428,6 +417,40 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
     const char* packageID = root["packageID"].as<char*>();
 
     staticThis->debugMsg(GENERAL, "meshRecvCb(): Recvd packageID=%s from %d-->%s<--\n", packageID, receiveConn->nodeId, data);
+
+    // Decode _recievedMessages
+    DynamicJsonBuffer jsonBufferMessages;
+    DynamicJsonBuffer jsonBufferMessagesTimestamps;
+    JsonObject& rootMessages = jsonBufferMessages.parseObject(staticThis->_recievedMessages);
+    JsonObject& rootTimestamps = jsonBufferMessagesTimestamps.parseObject(staticThis->_recievedTimestamps);
+
+    for(JsonObject::iterator it=rootTimestamps.begin(); it!=rootTimestamps.end(); ++it)
+    {
+        // *it contains the key/value pair
+        const char* key = it->key;
+        uint32_t value = it->value;
+        
+        //Serial.printf("Key: %s, Value: %d\n", key, value);
+
+        if(staticThis->getNodeTime() - value >= NODE_TIMEOUT) {
+          staticThis->debugMsg(ERROR, "meshRecvCb(): Expired packageID=%s! Last recieved: %d! Dropping...\n", key, value);
+          rootMessages.remove(key);
+          rootTimestamps.remove(key);
+
+          // Clear the vars
+          staticThis->_recievedMessages = "";
+          staticThis->_recievedTimestamps = "";
+
+          // Encode _recievedMessages back to String
+          rootMessages.printTo(staticThis->_recievedMessages);
+          rootTimestamps.printTo(staticThis->_recievedTimestamps);
+
+          if(key == packageID) return;
+        }
+    }
+
+    // Update the timestamp
+    rootTimestamps[packageID] = receivedAt;
 
     // If this is the first or the last part of the message
     if(root["sliceNum"].as<int>() == 0) rootMessages[packageID] = "";
@@ -454,7 +477,6 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
           break;
     }
 
-    bool flushMessages = false;
     if(root["slices"].as<int>() == root["sliceNum"].as<int>()) {
       //Serial.printf("Recieved whole message... \n");
 
@@ -514,14 +536,20 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
 
       // Remove read message from json
       rootMessages.remove(packageID);
+      rootTimestamps.remove(packageID);
     }
 
     // record that we've gotten a valid package
     receiveConn->lastReceived = system_get_time();
     staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): lastRecieved=%u fromId=%d type=%d\n", receiveConn->lastReceived, receiveConn->nodeId, t_message);
 
+    // Clear the vars
+    staticThis->_recievedMessages = "";
+    staticThis->_recievedTimestamps = "";
+
     // Encode _recievedMessages back to String
     rootMessages.printTo(staticThis->_recievedMessages);
+    rootTimestamps.printTo(staticThis->_recievedTimestamps);
     return;
 }
 

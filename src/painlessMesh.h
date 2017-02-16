@@ -26,11 +26,11 @@ extern "C" {
 //#define JSON_BUFSIZE            300 // initial size for the DynamicJsonBuffers.
 //@vkynchev -> with newer versions of ArduinoJson this is not needed anymore. It will occupy more memory than needed in some cases...
 
-#define MIN_FREE_MEMORY         16000 // Minimum free memory, besides here all packets in queue are discarded.
-#define MAX_MESSAGE_QUEUE       50 // MAX number of unsent messages in queue. Newer messages are discarded
-#define MAX_CONSECUTIVE_SEND    5 // Max message busrt
-#define MAX_MESSAGE_SIZE        1000 // Max message size in bytes(if the message is larger it will be sliced down)
-#define MAX_MESSAGE_BUNDLE_SIZE 5 // Max message slices (current limit based on testing), messages with more slices are discarded
+#define MIN_FREE_MEMORY           16000 // Minimum free memory, besides here all packets in queue are discarded.
+#define MAX_MESSAGE_QUEUE         50 // MAX number of unsent messages in queue. Newer messages are discarded
+#define MAX_CONSECUTIVE_SEND      5 // Max message busrt
+#define MAX_MESSAGE_SIZE          1000 // Max message size in bytes(if the message is larger it will be sliced down)
+#define MAX_MESSAGE_BUNDLE_SIZE   4 // Max message slices (current limit based on testing), messages with more slices are discarded
 
 enum nodeStatusType {
     INITIALIZING = 0,
@@ -214,6 +214,7 @@ protected:
     uint8_t     _meshMaxConn;
 
     String                          _recievedMessages = "{}";
+    String                          _recievedTimestamps = "{}";
 
     scanStatusType                  _scanStatus = IDLE; // STA scanning status
     nodeStatusType                  _nodeStatus = INITIALIZING;
