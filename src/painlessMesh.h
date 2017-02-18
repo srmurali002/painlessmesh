@@ -21,7 +21,9 @@ extern "C" {
 
 #include "painlessMeshSync.h"
 
-#define NODE_TIMEOUT            3000000  //uSecs
+#define CHIPID_ADDRESSING         false // Set to `true` if you want to use Espressif's hardware chipID constant...
+
+#define NODE_TIMEOUT              3000000  //uSecs
 
 //#define JSON_BUFSIZE            300 // initial size for the DynamicJsonBuffers.
 //@vkynchev -> with newer versions of ArduinoJson this is not needed anymore. It will occupy more memory than needed in some cases...

@@ -63,8 +63,12 @@ void ICACHE_FLASH_ATTR painlessMesh::init(String ssid, String password, uint16_t
 
     uint8_t MAC[] = { 0,0,0,0,0,0 };
     wifi_get_macaddr(SOFTAP_IF, MAC);
-    //_nodeId = encodeNodeId(MAC);
-    _nodeId = ESP.getChipId();
+
+    if(CHIPID_ADDRESSING) {
+      _nodeId = ESP.getChipId();
+    } else {
+      _nodeId = encodeNodeId(MAC);
+    }
 
     if (connectMode == AP_ONLY || connectMode == STA_AP)
         apInit();       // setup AP
