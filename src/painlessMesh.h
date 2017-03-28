@@ -21,12 +21,7 @@ extern "C" {
 
 #include "painlessMeshSync.h"
 
-#define CHIPID_ADDRESSING         false // Set to `true` if you want to use Espressif's hardware chipID constant...
-
 #define NODE_TIMEOUT              3000000  //uSecs
-
-//#define JSON_BUFSIZE            300 // initial size for the DynamicJsonBuffers.
-//@vkynchev -> with newer versions of ArduinoJson this is not needed anymore. It will occupy more memory than needed in some cases...
 
 #define MIN_FREE_MEMORY           16000 // Minimum free memory, besides here all packets in queue are discarded.
 #define MAX_MESSAGE_QUEUE         50 // MAX number of unsent messages in queue. Newer messages are discarded
