@@ -55,7 +55,7 @@ void ICACHE_FLASH_ATTR painlessMesh::onNodeDelayReceived(nodeDelayCallback_t cb)
 meshConnectionType* ICACHE_FLASH_ATTR painlessMesh::closeConnection(meshConnectionType *conn) {
     // It seems that more should be done here... perhaps send off a packet to
     // make an attempt to tell the other node that we are closing this conneciton?
-    debugMsg(CONNECTION, "closeConnection(): conn-nodeId=%d\n", conn->nodeId);
+    debugMsg(CONNECTION, "closeConnection(): conn-nodeId=%u\n", conn->nodeId);
     espconn_disconnect(conn->esp_conn);
     return _connections.erase(conn);
 }
@@ -217,7 +217,7 @@ meshConnectionType* ICACHE_FLASH_ATTR painlessMesh::findConnection(uint32_t node
 
         connection++;
     }
-    debugMsg(CONNECTION, "findConnection(%d): did not find connection\n", nodeId);
+    debugMsg(CONNECTION, "findConnection(%u): did not find connection\n", nodeId);
     return NULL;
 }
 
@@ -392,10 +392,7 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
 
     uint32_t receivedAt = staticThis->getNodeTime();
 
-    //Serial.print("Recieved: ");
-    //Serial.println(data);
-
-    staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): data=%s fromId=%d\n", data, receiveConn ? receiveConn->nodeId : 0);
+    staticThis->debugMsg(COMMUNICATION, "meshRecvCb(): data=%s fromId=%u\n", data, receiveConn ? receiveConn->nodeId : 0);
 
     if (!receiveConn) {
         staticThis->debugMsg(ERROR, "meshRecvCb(): recieved from unknown connection 0x%x ->%s<-\n", arg, data);
@@ -416,7 +413,7 @@ void ICACHE_FLASH_ATTR painlessMesh::meshRecvCb(void *arg, char *data, unsigned 
 
     const char* packageID = root["packageID"].as<char*>();
 
-    staticThis->debugMsg(GENERAL, "meshRecvCb(): Recvd packageID=%s from %d-->%s<--\n", packageID, receiveConn->nodeId, data);
+    staticThis->debugMsg(GENERAL, "meshRecvCb(): Recvd packageID=%s from %u-->%s<--\n", packageID, receiveConn->nodeId, data);
 
     // Decode _recievedMessages
     DynamicJsonBuffer jsonBufferMessages;
@@ -626,6 +623,7 @@ void ICACHE_FLASH_ATTR painlessMesh::wifiEventCb(System_Event_t *event) {
         break;
     case EVENT_STAMODE_DISCONNECTED:
         staticThis->debugMsg(CONNECTION, "wifiEventCb(): EVENT_STAMODE_DISCONNECTED\n");
+        wifi_station_disconnect(); // Make sure we are disconnected
         staticThis->connectToBestAP(); // Search for APs and connect to the best one
         break;
     case EVENT_STAMODE_AUTHMODE_CHANGE:
